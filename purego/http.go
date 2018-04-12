@@ -30,13 +30,13 @@ func (c *Client) doHTTPRequest(method string, endPoint string, reqData []byte, r
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
-
+	
 	//read response
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+	resp.Body.Close()  //close response so connection can be re-used.
 
 	pureRes := PureHTTPResponse{Body: string(body),
 		StatusCode: resp.StatusCode}

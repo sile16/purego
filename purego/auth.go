@@ -1,4 +1,6 @@
 
+//session and API commands
+
 package purego
 
 import (
@@ -15,6 +17,7 @@ type PureAuthSessionV1_12 struct {
 
 //StartSession start session
 func (c *Client) StartSession() error {
+	//make sure we only have 1 thread starting a session
 	c.sessionLock.Lock()
 	defer c.sessionLock.Unlock()
 

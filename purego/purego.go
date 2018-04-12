@@ -1,4 +1,7 @@
 //Package purego Wrapper for the Pure Storage API
+//This is unofficial and is actually the first program I've ever written in Golang :)
+//Matt Robertson mrobertson@purestorage.com
+
 package purego
 
 import (
@@ -31,66 +34,17 @@ type Client struct {
 	secure 	bool //will check TLS certificate when true.
 
 	lastSessionUse time.Time
-	sessionLock sync.Mutex 
+	sessionLock sync.Mutex
+	maxAPICalls chan struct{}
 }
-
-//NewClientUserPassAPISecure new client
-func NewClientUserPassAPISecure(arrayHost, username, password, apiToken string, secure bool) *Client {
-	c := &Client{
-		arrayHost: arrayHost,
-		Username:  username,
-		Password:  password,
-		APIToken:  apiToken,
-		secure: secure,
-	}
-	c.init()
-	return c
-}
-
-//NewClientUserPass New Client from User/Pass
-func NewClientUserPass(arrayHost, username, password string) *Client {
-	return NewClientUserPassAPISecure(arrayHost, username, password, "",true)
-}
-
-//NewClientAPIToken New Client from API Token
-func NewClientAPIToken(arrayHost, apiToken string) *Client {
-	return NewClientUserPassAPISecure(arrayHost, "", "", apiToken,true)
-}
-
-//NewClient New Client from API Token
-func NewClient(arrayHost string) *Client {
-	return NewClientUserPass(arrayHost, "pureuser", "pureuser")
-}
-
-//NewClientUserPassInsecure New Client from User/Pass
-func NewClientUserPassInsecure(arrayHost, username, password string) *Client {
-	return NewClientUserPassAPISecure(arrayHost, username, password, "",false)
-}
-
-//NewClientAPITokenInsecure New Client from API Token
-func NewClientAPITokenInsecure(arrayHost, apiToken string) *Client {
-	return NewClientUserPassAPISecure(arrayHost, "", "", apiToken,true)
-}
-
-//NewClientInsecure New Client from API Token
-func NewClientInsecure(arrayHost string) *Client {
-	return NewClientUserPassInsecure(arrayHost, "pureuser", "pureuser")
-}
-
-//log
-func (c *Client) log(level int, msg string) {
-	if level <= c.LogLevel {
-		fmt.Println(msg)
-	}
-}
-
 
 func (c *Client) init() {
 	c.apiVersion = "1.12"
 	c.url = "https://" + c.arrayHost + "/api/" + c.apiVersion + "/"
 	
 	c.sessionStarted = false
-	c.LogLevel = 3
+	c.LogLevel = 1
+	c.maxAPICalls = make(chan struct{},10)  //This sets the maximum number of concurrent API calls.
 
 
 	var netTransport = &http.Transport{
@@ -112,12 +66,65 @@ func (c *Client) init() {
 	}
 }
 
+//newClientUserPassAPISecure new client
+func newClientUserPassAPISecure(arrayHost, username, password, apiToken string, secure bool) *Client {
+	c := &Client{
+		arrayHost: arrayHost,
+		Username:  username,
+		Password:  password,
+		APIToken:  apiToken,
+		secure: secure,
+	}
+	c.init()
+	return c
+}
 
+//NewClientUserPassAPIInsecure New Client from User/Pass & API & bypass certificate check
+func NewClientUserPassAPIInsecure(arrayHost, username, password, apiToken string) *Client {
+	return newClientUserPassAPISecure(arrayHost, username, password, apiToken,false)
+}
 
+//NewClientUserPassAPI New Client from User/Pass  & API
+func NewClientUserPassAPI(arrayHost, username, password , apiToken string) *Client {
+	return newClientUserPassAPISecure(arrayHost, username, password, apiToken,true)
+}
 
+//NewClientAPIToken New Client from API Token
+func NewClientAPIToken(arrayHost, apiToken string) *Client {
+	return newClientUserPassAPISecure(arrayHost, "", "", apiToken,true)
+}
 
+//NewClientUserPass New Client from User/Pass
+func NewClientUserPass(arrayHost, username, password string) *Client {
+	return newClientUserPassAPISecure(arrayHost, username, password, "",true)
+}
 
+//NewClient New Client from API Token
+func NewClient(arrayHost string) *Client {
+	return NewClientUserPass(arrayHost, "pureuser", "pureuser")
+}
 
+//NewClientUserPassInsecure New Client from User/Pass
+func NewClientUserPassInsecure(arrayHost, username, password string) *Client {
+	return newClientUserPassAPISecure(arrayHost, username, password, "",false)
+}
+
+//NewClientAPITokenInsecure New Client from API Token
+func NewClientAPITokenInsecure(arrayHost, apiToken string) *Client {
+	return newClientUserPassAPISecure(arrayHost, "", "", apiToken,true)
+}
+
+//NewClientInsecure New Client from API Token
+func NewClientInsecure(arrayHost string) *Client {
+	return NewClientUserPassInsecure(arrayHost, "pureuser", "pureuser")
+}
+
+//log
+func (c *Client) log(level int, msg string) {
+	if level <= c.LogLevel {
+		fmt.Println(msg)
+	}
+}
 
 
 //PureArrayV1_12 pure array details

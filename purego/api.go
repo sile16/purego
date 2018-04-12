@@ -2,6 +2,7 @@ package purego
 
 import (
 	"fmt"
+
 )
 
 
@@ -11,23 +12,34 @@ func (c *Client) apiCall(method string, endPoint string) error {
 }
 
 
-
-
 //apiCallJSON internal api call, that unmarshalls JSON into specific type.
 func (c *Client) apiCallJSON(method string, endPoint string, reqData []byte, resInt interface{}) error {
+	//todo
 	c.log(3, "API Call: "+endPoint)
+
+	//this will block if channel reaches 10 concurrent threads a.k.a the channel size of c.maxAPICAlls
+	c.maxAPICalls <- struct{}{}
+	//defer the release of channel, by reading a value out.
+	defer func() {
+		<-c.maxAPICalls //release semaphore lock / clear the channel
+	}()
+
 
 	errSession := c.checkSession()
 	if errSession != nil {
 		return errSession
 	}
 
-	resp, err := c.doHTTPRequest(method, endPoint, reqData, resInt)
-	if err != nil {
-		return err
-	}
+	var resp *PureHTTPResponse
+	var err error
 
+	//provide some sort of retry loop
 	for retry := 0; retry < 2; retry++ {
+
+		resp, err = c.doHTTPRequest(method, endPoint, reqData, resInt)
+		if err != nil {
+			return err
+		}
 
 		switch resp.StatusCode {
 		case 200:
@@ -44,7 +56,7 @@ func (c *Client) apiCallJSON(method string, endPoint string, reqData []byte, res
 				return err
 			}
 			//then retry
-			resp, err = c.doHTTPRequest(method, endPoint, reqData, resInt)
+			//let loop circle back to top
 			break
 
 		//case 400:
@@ -70,12 +82,7 @@ func (c *Client) apiCallJSON(method string, endPoint string, reqData []byte, res
 
 	}
 
-	//Do one last check to see if there was an error
-	if err != nil || resp.StatusCode != 200 {
-		return fmt.Errorf("Error: Max retry hit last error: %s", err.Error())
-	}
-
-	//Everything looks okay return nil.
-	return nil
+	//Hit max retry limit, 
+	return fmt.Errorf("Max retry hit")
 
 }
